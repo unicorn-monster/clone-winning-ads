@@ -2,19 +2,57 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import fs from 'fs/promises'
 import path from 'path'
+import crypto from 'crypto'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const KIE_BASE = 'https://api.kie.ai/api/v1'
 const ROOT = path.join(process.cwd(), '..')
 
-const SYSTEM_PROMPT = `You are a DTC ad creative director. Fill every [PLACEHOLDER] in the template using real content from the provided docs.
+// Cache ref image Cloudinary URLs to avoid re-uploading on every generation
+const refImageUrlCache = new Map<string, string>()
 
-Rules:
-- Source everything from brand-dna.md and product context files — never invent
-- If something is not in the docs: flag it as [NOT FOUND IN DOCS: best inference]
-- Keep template structure exactly — only replace [PLACEHOLDERS]
-- When multiple options exist: pick the most specific, emotional, shortest
-- Output ONLY the completed prompt — no explanation, no preamble`
+async function uploadRefImageToCloudinary(filePath: string): Promise<string | null> {
+  if (refImageUrlCache.has(filePath)) return refImageUrlCache.get(filePath)!
+  try {
+    const buffer = await fs.readFile(filePath)
+    const ext = path.extname(filePath).slice(1).toLowerCase() || 'png'
+    const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
+    const dataUri = `data:${mime};base64,${buffer.toString('base64')}`
+
+    const cloud = process.env.CLOUDINARY_CLOUD_NAME!
+    const apiKey = process.env.CLOUDINARY_API_KEY!
+    const apiSecret = process.env.CLOUDINARY_API_SECRET!
+    const timestamp = Math.floor(Date.now() / 1000).toString()
+    const folder = 'ad-studio-template-refs'
+    const toSign = `folder=${folder}&timestamp=${timestamp}${apiSecret}`
+    const signature = crypto.createHash('sha1').update(toSign).digest('hex')
+
+    const body = new URLSearchParams({ file: dataUri, api_key: apiKey, timestamp, folder, signature })
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/image/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    })
+    const data = await res.json()
+    if (!data.secure_url) { console.error('Ref image upload failed:', data.error?.message); return null }
+    refImageUrlCache.set(filePath, data.secure_url)
+    return data.secure_url
+  } catch (err) {
+    console.error('uploadRefImageToCloudinary error:', err)
+    return null
+  }
+}
+
+const SYSTEM_PROMPT = `You are a DTC ad creative director. Your ONLY job is to replace [PLACEHOLDER] tokens in the template with real content from the product docs.
+
+Strict rules:
+- Replace ONLY the exact [PLACEHOLDER] tokens — every word, punctuation, and space outside brackets must remain character-for-character identical
+- Do NOT add, remove, reorder, reformat, or rewrite anything else
+- Do NOT use markdown formatting (no **bold**, no ##, no bullet points)
+- Do NOT add new sentences, elements, or creative decisions
+- Source all replacements from the provided product docs — never invent
+- If a value is not in the docs, use your best inference but keep it concise
+- Output ONLY the completed prompt — no explanation, no preamble, no wrapper`
 
 export async function POST(req: NextRequest) {
   const {
@@ -70,6 +108,15 @@ export async function POST(req: NextRequest) {
           filledPrompt = (claudeRes.content[0] as { type: string; text: string }).text.trim()
         }
 
+        // Build image_input: product images first, then template reference image
+        const productImages = imageUrls ?? getCloudinaryUrls(productSlug)
+        const imgFiles = await fs.readdir(folderPath)
+        const refImgFile = imgFiles.find(f => f.match(/\.(png|jpg|jpeg|webp)$/i))
+        const refImgUrl = refImgFile
+          ? await uploadRefImageToCloudinary(path.join(folderPath, refImgFile))
+          : null
+        const imageInput = refImgUrl ? [...productImages, refImgUrl] : productImages
+
         const kieRes = await fetch(`${KIE_BASE}/jobs/createTask`, {
           method: 'POST',
           headers: {
@@ -80,7 +127,7 @@ export async function POST(req: NextRequest) {
             model: 'nano-banana-2',
             input: {
               prompt: filledPrompt,
-              image_input: imageUrls ?? getCloudinaryUrls(productSlug),
+              image_input: imageInput,
               aspect_ratio: meta.ratio ?? '1:1',
               resolution: '1K',
               output_format: 'png',

@@ -6,14 +6,18 @@ import path from 'path'
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const ROOT = path.join(process.cwd(), '..')
 
-const SYSTEM_PROMPT = `You are a DTC ad creative director. Fill every [PLACEHOLDER] in the template using real content from the provided docs.
+const SYSTEM_PROMPT = `You are a DTC ad creative director. The template you receive is an image generation prompt written as a visual design brief. Your ONLY job is to swap every [PLACEHOLDER] token with real content from the product docs — nothing else.
 
 Rules:
-- Source everything from brand-dna.md and product context files — never invent
-- If something is not in the docs: flag it as [NOT FOUND IN DOCS: best inference]
-- Keep template structure exactly — only replace [PLACEHOLDERS]
-- When multiple options exist: pick the most specific, emotional, shortest
-- Output ONLY the completed prompt — no explanation, no preamble`
+- Output the template text verbatim, with ONLY the [PLACEHOLDER] tokens replaced by specific product values
+- Every word, sentence, and punctuation mark outside of [brackets] must remain exactly as-is
+- Do NOT rewrite, restructure, reformat, or comment on the template
+- Do NOT add sections, headers, labels, or anything not already in the template
+- Do NOT use markdown (no **, no ##)
+- Do NOT explain what you're doing or ask for clarification — just output the filled prompt
+- For open-ended placeholders like "[list 3-4 negatives]", fill them inline with specific product content
+- Source all values from the product docs; infer brand colors and names from context if needed
+- Output ONLY the completed prompt — no preamble, no explanation, nothing else`
 
 export async function POST(req: NextRequest) {
   const {

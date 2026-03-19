@@ -20,24 +20,56 @@ interface JobResult {
   imageUrl?: string
 }
 
+interface GalleryItem {
+  folder: string
+  imageUrl: string
+  adFormat: string
+  ratio: string
+  savedAt: number // timestamp ms
+}
+
 const ALL_FILTERS = [
   { label: 'All', value: 'all', type: 'all' as const },
   { label: 'Bold Claim', value: 'bold-claim', type: 'format' as const },
-  { label: 'Key Benefits', value: 'key-benefits', type: 'format' as const },
-  { label: 'Comparison', value: 'comparison', type: 'format' as const },
-  { label: 'Before & After', value: 'before-after', type: 'format' as const },
-  { label: 'Polished Review', value: 'polished-review', type: 'format' as const },
-  { label: 'Community Ad', value: 'community-ad', type: 'format' as const },
-  { label: 'Split Screen', value: 'split-screen', type: 'format' as const },
-  { label: 'Grid Swap', value: 'grid-swap', type: 'format' as const },
-  { label: 'Price Breakdown', value: 'price-breakdown', type: 'format' as const },
-  { label: 'How To', value: 'how-to', type: 'format' as const },
-  { label: 'Text Message', value: 'text-message', type: 'format' as const },
-  { label: 'Post It', value: 'post-it', type: 'format' as const },
-  { label: 'Promo', value: 'promo', type: 'format' as const },
-  { label: 'Problem vs. Solution', value: 'problem-solution', type: 'format' as const },
-  { label: 'News/Media', value: 'news-media', type: 'format' as const },
-  { label: 'Lifestyle', value: 'lifestyle', type: 'format' as const },
+  { label: 'Bold Headline', value: 'bold-headline', type: 'format' as const },
+  { label: 'Bold Statement', value: 'bold-statement', type: 'format' as const },
+  { label: 'Testimonial', value: 'testimonial', type: 'format' as const },
+  { label: 'Annotated Testimonial', value: 'annotated-testimonial', type: 'format' as const },
+  { label: 'Verified Review', value: 'verified-review', type: 'format' as const },
+  { label: 'Pull Quote Review', value: 'pull-quote-review', type: 'format' as const },
+  { label: 'Features & Benefits', value: 'features-benefits', type: 'format' as const },
+  { label: 'Benefit Checklist', value: 'benefit-checklist', type: 'format' as const },
+  { label: 'Bullet Points', value: 'bullet-points', type: 'format' as const },
+  { label: 'Social Proof', value: 'social-proof', type: 'format' as const },
+  { label: 'Us vs. Them', value: 'us-vs-them', type: 'format' as const },
+  { label: 'Us vs. Them Split', value: 'us-vs-them-split', type: 'format' as const },
+  { label: 'Comparison Grid', value: 'comparison-grid', type: 'format' as const },
+  { label: 'Before & After UGC', value: 'before-after-ugc', type: 'format' as const },
+  { label: 'Whiteboard Before/After', value: 'whiteboard-before-after', type: 'format' as const },
+  { label: 'Stat Surround Product', value: 'stat-surround-product', type: 'format' as const },
+  { label: 'Stat Surround Lifestyle', value: 'stat-surround-lifestyle', type: 'format' as const },
+  { label: 'Stat Callout', value: 'stat-callout', type: 'format' as const },
+  { label: 'Lifestyle Action', value: 'lifestyle-action', type: 'format' as const },
+  { label: 'Hero Product', value: 'hero-product', type: 'format' as const },
+  { label: 'Hero Statement', value: 'hero-statement-icon', type: 'format' as const },
+  { label: 'Hero Offer Burst', value: 'hero-offer-burst', type: 'format' as const },
+  { label: 'Bundle Showcase', value: 'bundle-showcase', type: 'format' as const },
+  { label: 'Feature Arrow', value: 'feature-arrow', type: 'format' as const },
+  { label: 'Flavor Story', value: 'flavor-story', type: 'format' as const },
+  { label: 'Manifesto', value: 'manifesto', type: 'format' as const },
+  { label: 'Advertorial', value: 'advertorial-editorial', type: 'format' as const },
+  { label: 'Press Editorial', value: 'press-editorial', type: 'format' as const },
+  { label: 'Faux Press', value: 'faux-press', type: 'format' as const },
+  { label: 'Faux iPhone Notes', value: 'faux-iphone-notes', type: 'format' as const },
+  { label: 'Social Comment', value: 'social-comment', type: 'format' as const },
+  { label: 'Product Comment', value: 'product-comment', type: 'format' as const },
+  { label: 'UGC Viral Overlay', value: 'ugc-viral-overlay', type: 'format' as const },
+  { label: 'UGC Story', value: 'ugc-story', type: 'format' as const },
+  { label: 'UGC Lifestyle Split', value: 'ugc-lifestyle-split', type: 'format' as const },
+  { label: 'Negative Marketing', value: 'negative-marketing', type: 'format' as const },
+  { label: 'Curiosity Gap Hook', value: 'curiosity-gap-hook', type: 'format' as const },
+  { label: 'Curiosity Scroll Stopper', value: 'curiosity-scroll-stopper', type: 'format' as const },
+  { label: 'Native Post-It', value: 'native-post-it', type: 'format' as const },
 ]
 
 function initials(slug: string) {
@@ -54,11 +86,51 @@ export default function Home() {
   const [jobs, setJobs] = useState<JobResult[]>([])
   const [generatingPrompts, setGeneratingPrompts] = useState(false)
   const [generatingImages, setGeneratingImages] = useState(false)
+  const [generatingImageFor, setGeneratingImageFor] = useState<Set<string>>(new Set())
+  const [generatingPromptFor, setGeneratingPromptFor] = useState<Set<string>>(new Set())
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({})
   const [refImages, setRefImages] = useState<{ file: File; preview: string }[]>([])
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([])
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [midTab, setMidTab] = useState<'templates' | 'gallery'>('templates')
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([])
+
+  const GALLERY_KEY = 'ad-gallery'
+  const TTL = 24 * 60 * 60 * 1000 // 24h
+
+  function loadGallery(): GalleryItem[] {
+    try {
+      const raw = localStorage.getItem(GALLERY_KEY)
+      if (!raw) return []
+      const items: GalleryItem[] = JSON.parse(raw)
+      const cutoff = Date.now() - TTL
+      return items.filter(i => i.savedAt > cutoff)
+    } catch { return [] }
+  }
+
+  function saveToGallery(newItems: GalleryItem[]) {
+    const existing = loadGallery()
+    // Merge: replace same folder entries, keep others
+    const merged = [
+      ...existing.filter(e => !newItems.some(n => n.folder === e.folder)),
+      ...newItems,
+    ]
+    localStorage.setItem(GALLERY_KEY, JSON.stringify(merged))
+    setGalleryItems(merged)
+  }
+
+  function removeFromGallery(folder: string) {
+    const updated = loadGallery().filter(i => i.folder !== folder)
+    localStorage.setItem(GALLERY_KEY, JSON.stringify(updated))
+    setGalleryItems(updated)
+  }
+
+  useEffect(() => {
+    setGalleryItems(loadGallery())
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     fetch('/api/products').then(r => r.json()).then(d => {
@@ -159,6 +231,60 @@ export default function Home() {
     }
   }
 
+  async function generateSinglePrompt(folder: string) {
+    if (!selectedProduct) return
+    setGeneratingPromptFor(prev => new Set(prev).add(folder))
+    try {
+      const res = await fetch('/api/generate-prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateFolders: [folder], productSlug: selectedProduct, model }),
+      })
+      if (!res.ok) { console.error('generate-prompts error:', res.status, await res.text()); return }
+      const data = await res.json()
+      const p = data.prompts?.[0]
+      if (p?.filledPrompt) setCustomPrompts(prev => ({ ...prev, [folder]: p.filledPrompt }))
+    } catch (err) {
+      console.error('generateSinglePrompt failed:', err)
+    } finally {
+      setGeneratingPromptFor(prev => { const n = new Set(prev); n.delete(folder); return n })
+    }
+  }
+
+  async function generateSingleImage(folder: string) {
+    if (!selectedProduct || !hasImages) return
+    setGeneratingImageFor(prev => new Set(prev).add(folder))
+    setJobs(prev => {
+      const existing = prev.find(j => j.folder === folder)
+      if (existing) return prev.map(j => j.folder === folder ? { ...j, status: 'pending', imageUrl: undefined, error: undefined, taskId: null } : j)
+      return [...prev, { folder, taskId: null, status: 'pending' }]
+    })
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          templateFolders: [folder],
+          productSlug: selectedProduct,
+          model,
+          imageUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
+          filledPrompts: customPrompts[folder] ? { [folder]: customPrompts[folder] } : undefined,
+        }),
+      })
+      if (!res.ok) { console.error('generate error:', res.status, await res.text()); return }
+      const data = await res.json()
+      const job: JobResult = data.jobs?.[0]
+      if (job) {
+        setJobs(prev => prev.map(j => j.folder === folder ? { ...j, ...job, status: job.error ? 'error' : job.taskId ? 'pending' : 'error' } : j))
+        if (job.taskId) pollJob(job.taskId)
+      }
+    } catch (err) {
+      console.error('generateSingleImage failed:', err)
+    } finally {
+      setGeneratingImageFor(prev => { const n = new Set(prev); n.delete(folder); return n })
+    }
+  }
+
   async function generateImages() {
     if (!selectedProduct || selectedFolders.size === 0) return
     setGeneratingImages(true)
@@ -198,39 +324,71 @@ export default function Home() {
     const interval = setInterval(async () => {
       const res = await fetch(`/api/status?taskId=${taskId}`)
       const data = await res.json()
-      setJobs(prev =>
-        prev.map(j =>
+      setJobs(prev => {
+        const next = prev.map(j =>
           j.taskId === taskId
             ? { ...j, status: data.status ?? j.status, imageUrl: data.imageUrl ?? j.imageUrl }
             : j
         )
-      )
+        if (data.status === 'success' && data.imageUrl) {
+          const job = next.find(j => j.taskId === taskId)
+          if (job) {
+            const tpl = templates.find(t => t.folder === job.folder)
+            saveToGallery([{
+              folder: job.folder,
+              imageUrl: data.imageUrl,
+              adFormat: tpl?.adFormat ?? '',
+              ratio: tpl?.ratio ?? '',
+              savedAt: Date.now(),
+            }])
+          }
+        }
+        return next
+      })
       if (data.status === 'success' || data.status === 'fail') clearInterval(interval)
     }, 5000)
   }
 
   async function downloadImage(imageUrl: string, filename: string) {
-    const blob = await fetch(imageUrl).then(r => r.blob())
+    const blob = await fetch(`/api/proxy-image?url=${encodeURIComponent(imageUrl)}`).then(r => r.blob())
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = filename
     a.click()
   }
 
+  async function downloadAllImages() {
+    const doneJobs = jobs.filter(j => j.imageUrl)
+    if (doneJobs.length === 0) return
+    const res = await fetch('/api/download-zip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        images: doneJobs.map(j => ({ url: j.imageUrl!, filename: `${j.folder}.png` })),
+      }),
+    })
+    if (!res.ok) { console.error('download-zip failed', res.status); return }
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${selectedProduct}-ads.zip`
+    a.click()
+  }
+
   const hasOutput = selectedFolders.size > 0 || jobs.length > 0 || Object.keys(customPrompts).length > 0
   const hasPrompts = Object.keys(customPrompts).length > 0
   const loading = generatingPrompts || generatingImages
+  const hasImages = refImages.length > 0 && !uploading
 
   return (
     <div className="h-screen bg-white flex font-sans overflow-hidden">
       <div className="w-full flex overflow-hidden">
 
         {/* LEFT SIDEBAR */}
-        <div className="w-64 shrink-0 border-r border-black/8 flex flex-col bg-white">
+        <div className="w-[20%] shrink-0 border-r border-black/8 flex flex-col bg-white overflow-hidden">
           {/* Header */}
           <div className="px-5 pt-5 pb-4 border-b border-black/8">
-            <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest mb-0.5">Internal Tool</p>
-            <h1 className="text-xl font-bold text-black tracking-tight">Ad Studio</h1>
+<h1 className="text-xl font-bold text-black tracking-tight">🙏 Mark - Give Me Money</h1>
           </div>
 
           {/* Product */}
@@ -311,30 +469,15 @@ export default function Home() {
               </div>
             )}
             {uploading && <p className="text-[10px] text-black/30 mt-1.5">Uploading…</p>}
+            {!uploading && refImages.length === 0 && selectedFolders.size > 0 && (
+              <p className="text-[11px] text-amber-600 font-medium mt-1.5">⚠ Add a product image to generate</p>
+            )}
           </div>
 
-          {/* Model selector */}
-          <div className="px-5 pt-4 pb-3 border-b border-black/8">
-            <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest mb-2">Model</p>
-            <select
-              value={model}
-              onChange={e => setModel(e.target.value)}
-              className="w-full text-xs bg-black/4 border border-black/8 rounded-lg px-2.5 py-2 text-black/70 appearance-none cursor-pointer"
-            >
-              <option value="claude-haiku-4-5-20251001">Haiku 4.5 — fast</option>
-              <option value="claude-sonnet-4-6">Sonnet 4.6 — quality</option>
-            </select>
-          </div>
-
-          <div className="flex-1" />
-        </div>
-
-        {/* MIDDLE: Template grid */}
-        <div className="flex-1 flex flex-col min-w-0 border-r border-black/8 basis-0">
           {/* Filters */}
-          <div className="px-4 pt-3 pb-2 border-b border-black/8 flex items-center gap-2">
-            <span className="text-[10px] font-semibold text-black/30 uppercase tracking-widest shrink-0">Format</span>
-            <div className="flex items-center gap-1 flex-wrap">
+          <div className="px-5 pt-4 pb-3 border-b border-black/8 overflow-y-auto flex-1">
+            <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest mb-3">Format</p>
+            <div className="grid grid-cols-2 gap-1.5">
               {ALL_FILTERS.map(f => {
                 const active = activeFilter === f.value
                 const count = countForFilter(f)
@@ -342,13 +485,15 @@ export default function Home() {
                   <button
                     key={f.value}
                     onClick={() => setActiveFilter(f.value)}
-                    className={`flex items-center gap-1 rounded-md px-2.5 py-1 transition-colors ${
-                      active ? 'bg-[#e8f5e9] text-black font-semibold' : 'text-black/50 hover:bg-black/4'
+                    className={`flex items-center justify-between gap-1 rounded-full px-3 py-2 transition-colors text-left border ${
+                      active
+                        ? 'bg-[#e8f5e9] border-[#4caf50]/40 text-black font-semibold'
+                        : 'bg-black/4 border-transparent text-black/55 hover:bg-black/8'
                     }`}
                   >
-                    <span className="text-[13px]">{f.label}</span>
+                    <span className="text-[11px] leading-tight truncate">{f.label}</span>
                     {count > 0 && (
-                      <span className={`text-[11px] tabular-nums ${active ? 'text-black/40' : 'text-black/25'}`}>
+                      <span className={`text-[10px] tabular-nums shrink-0 ${active ? 'text-black/40' : 'text-black/25'}`}>
                         {count}
                       </span>
                     )}
@@ -357,59 +502,157 @@ export default function Home() {
               })}
             </div>
           </div>
+        </div>
 
-          {/* Grid */}
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="grid grid-cols-3 gap-3 items-start">
-              {filtered.map(t => {
-                const selected = selectedFolders.has(t.folder)
-                const name = t.folder.replace('template-prompt-', 'Template ').replace(/-/g, ' ')
-                return (
-                  <button
-                    key={t.folder}
-                    onClick={() => toggleFolder(t.folder)}
-                    className={`relative rounded-md overflow-hidden border-2 text-left transition-all bg-[#f7f4f0] ${
-                      selected ? 'border-[#4caf50]' : 'border-transparent hover:border-black/15'
-                    }`}
-                  >
-                    {/* Preview */}
-                    {t.refImg ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.refImg} alt={t.folder} className="w-full h-auto block" />
-                    ) : (
-                      <div className="w-full aspect-square bg-[#edeae5] flex items-center justify-center text-black/20 text-xs">No preview</div>
-                    )}
-                    {/* Label */}
-                    <div className="px-2.5 py-2">
-                      <p className="text-xs font-semibold text-black truncate">{name}</p>
-                      <p className="text-[11px] text-black/40 mt-0.5">{t.ratio} · {t.adFormat || '—'}</p>
-                    </div>
-                    {/* Check */}
-                    {selected && (
-                      <div className="absolute top-2 right-2 w-5 h-5 bg-[#4caf50] rounded-full flex items-center justify-center shadow">
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+        {/* MIDDLE: Tabs */}
+        <div className="w-[40%] flex flex-col min-w-0 border-r border-black/8">
+          {/* Tab bar (replaces spacer) */}
+          <div className="h-[88px] border-b border-black/8 shrink-0 flex items-end px-4 pb-0 gap-1">
+            {(['templates', 'gallery'] as const).map(tab => {
+              const label = tab === 'templates' ? 'Templates' : `Gallery${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setMidTab(tab)}
+                  className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors border-t border-x ${
+                    midTab === tab
+                      ? 'bg-white border-black/8 text-black'
+                      : 'bg-transparent border-transparent text-black/40 hover:text-black/60'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
           </div>
+
+          {/* Templates tab */}
+          {midTab === 'templates' && (
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-4 gap-3 items-start">
+                {filtered.map(t => {
+                  const selected = selectedFolders.has(t.folder)
+                  const name = t.folder.replace('template-prompt-', 'Template ').replace(/-/g, ' ')
+                  return (
+                    <button
+                      key={t.folder}
+                      onClick={() => toggleFolder(t.folder)}
+                      className={`relative rounded-md overflow-hidden border-2 text-left transition-all bg-[#f7f4f0] ${
+                        selected ? 'border-[#4caf50]' : 'border-transparent hover:border-black/15'
+                      }`}
+                    >
+                      {t.refImg ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={t.refImg} alt={t.folder} className="w-full h-auto block" />
+                      ) : (
+                        <div className="w-full aspect-square bg-[#edeae5] flex items-center justify-center text-black/20 text-xs">No preview</div>
+                      )}
+                      <div className="px-2.5 py-2">
+                        <p className="text-xs font-semibold text-black truncate">{name}</p>
+                        <p className="text-[11px] text-black/40 mt-0.5">{t.ratio} · {t.adFormat || '—'}</p>
+                      </div>
+                      {selected && (
+                        <div className="absolute top-2 right-2 w-5 h-5 bg-[#4caf50] rounded-full flex items-center justify-center shadow">
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Gallery tab */}
+          {midTab === 'gallery' && (
+            <div className="flex-1 overflow-y-auto flex flex-col">
+              {galleryItems.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-8">
+                  <div className="w-14 h-14 rounded-xl bg-black/5 flex items-center justify-center">
+                    <svg className="w-7 h-7 text-black/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-black/35">No generated images yet</p>
+                </div>
+              ) : (
+                <>
+                  <div className="px-4 pt-4 pb-3 shrink-0">
+                    <button
+                      onClick={() => {
+                        // Use galleryItems for download all
+                        const doneJobs = galleryItems.map(g => ({ folder: g.folder, imageUrl: g.imageUrl, taskId: null }))
+                        fetch('/api/download-zip', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ images: doneJobs.map(j => ({ url: j.imageUrl, filename: `${j.folder}.png` })) }),
+                        }).then(r => r.blob()).then(blob => {
+                          const a = document.createElement('a')
+                          a.href = URL.createObjectURL(blob)
+                          a.download = 'ads-gallery.zip'
+                          a.click()
+                        })
+                      }}
+                      className="w-full flex items-center justify-center gap-2 rounded-lg border border-black/15 bg-black/4 px-3 py-2.5 text-xs font-semibold text-black/70 hover:bg-black/8 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
+                      Download all as ZIP ({galleryItems.length} images)
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-4 pb-4">
+                    <div className="grid grid-cols-3 gap-3">
+                      {[...galleryItems].sort((a, b) => b.savedAt - a.savedAt).map(g => {
+                        const name = g.folder.replace('template-prompt-', 'Template ')
+                        return (
+                          <div key={g.folder} className="flex flex-col gap-1">
+                            <div className="relative rounded-md overflow-hidden border border-black/8 bg-[#f7f4f0] cursor-zoom-in group">
+                              <div onClick={() => setPreviewUrl(g.imageUrl)}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={g.imageUrl} alt={g.folder} className="w-full h-auto block" />
+                              </div>
+                              <button
+                                onClick={() => removeFromGallery(g.folder)}
+                                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Remove"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                            <p className="text-[11px] font-semibold text-black truncate">{name}</p>
+                            <p className="text-[10px] text-black/40">{g.ratio} · {g.adFormat || '—'}</p>
+                            <button
+                              onClick={() => downloadImage(g.imageUrl, `${g.folder}.png`)}
+                              className="w-full text-[11px] font-semibold text-black/50 hover:text-black border border-black/10 rounded-md py-1.5 transition-colors"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* RIGHT: Output */}
-        <div className="flex-1 flex flex-col bg-white basis-0">
+        <div className="w-[40%] flex flex-col bg-white">
           {/* Header */}
-          <div className="px-5 py-3 border-b border-black/8 flex items-center gap-3">
-            <span className="text-sm font-semibold text-black shrink-0">Output</span>
-            <div className="flex items-center gap-2 ml-auto">
-              {/* Generate Prompts */}
+          <div className="px-4 py-3 border-b border-black/8 flex gap-2">
+            {/* Left column: Generate Prompts + Model */}
+            <div className="flex-1 flex flex-col gap-2">
               <button
                 onClick={generatePrompts}
                 disabled={generatingPrompts || !selectedProduct || selectedFolders.size === 0}
-                className="flex items-center gap-1.5 rounded-lg border border-[#4caf50] px-3 py-1.5 text-xs font-semibold text-[#2e7d32] hover:bg-[#e8f5e9] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-[#4caf50] px-3 py-1.5 text-xs font-semibold text-[#2e7d32] hover:bg-[#e8f5e9] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 {generatingPrompts ? (
                   <><div className="w-3 h-3 border border-[#4caf50] border-t-transparent rounded-full animate-spin" /> Generating…</>
@@ -417,23 +660,34 @@ export default function Home() {
                   <>{hasPrompts ? '↻ Regenerate prompts' : 'Generate prompts'}</>
                 )}
               </button>
-              {/* Generate Images */}
+              <select
+                value={model}
+                onChange={e => setModel(e.target.value)}
+                className="w-full text-xs bg-black/4 border border-black/8 rounded-lg px-2.5 py-2 text-black/70 appearance-none cursor-pointer"
+              >
+                <option value="claude-haiku-4-5-20251001">Haiku 4.5 — fast</option>
+                <option value="claude-sonnet-4-6">Sonnet 4.6 — quality</option>
+              </select>
+            </div>
+            {/* Right column: Generate Images */}
+            <div className="relative group flex-1">
               <button
                 onClick={generateImages}
-                disabled={generatingImages || !selectedProduct || selectedFolders.size === 0}
-                className="flex items-center gap-1.5 rounded-lg border border-black/20 bg-black px-3 py-1.5 text-xs font-semibold text-white hover:bg-black/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                disabled={generatingImages || !selectedProduct || selectedFolders.size === 0 || !hasImages}
+                className="w-full h-full flex items-center justify-center gap-1.5 rounded-xl bg-black border-2 border-transparent px-3 py-1.5 text-sm font-semibold text-white hover:bg-transparent hover:border-black hover:text-black disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
               >
                 {generatingImages ? (
                   <><div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" /> Generating…</>
                 ) : 'Generate images'}
               </button>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${
-                loading ? 'bg-yellow-100 text-yellow-700' :
-                hasOutput ? 'bg-green-100 text-green-700' :
-                'bg-green-50 text-green-600'
-              }`}>
-                {generatingPrompts ? 'Prompting…' : generatingImages ? 'Generating…' : 'Ready'}
-              </span>
+              {!hasImages && (
+                <div className="absolute bottom-full right-0 mb-2 hidden group-hover:flex items-center gap-1.5 whitespace-nowrap bg-black text-white text-[11px] font-medium px-2.5 py-1.5 rounded-lg shadow-lg pointer-events-none">
+                  <svg className="w-3 h-3 text-yellow-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                  </svg>
+                  Add a product image first
+                </div>
+              )}
             </div>
           </div>
 
@@ -466,52 +720,100 @@ export default function Home() {
                         <p className="text-xs font-bold text-black">{name}</p>
                         <span className="text-[10px] text-black/25">·</span>
                         <span className="text-[10px] text-black/35">{ratio} · {tpl?.adFormat || '—'}</span>
-                        <span className={`text-[10px] font-semibold ml-auto ${statusColor}`}>{statusLabel}</span>
+                        <span className={`text-[10px] font-semibold ml-auto ${statusColor}`}>{statusLabel !== 'Ready' ? statusLabel : ''}</span>
+                        <button
+                          onClick={() => toggleFolder(folder)}
+                          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-red-500 bg-red-50 shrink-0"
+                        >
+                          ❌ Clear
+                        </button>
                       </div>
 
-                      {/* 2-column: prompt | image */}
-                      <div className="grid grid-cols-2 gap-3 items-start">
+                      {/* 3-column: preview | prompt | outcome */}
+                      <div className="grid grid-cols-3 gap-3 items-start">
 
-                        {/* Left: Prompt */}
-                        <div className="rounded-md border border-dashed border-black/20 bg-white p-3 flex flex-col gap-2">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#4caf50]" />
-                            <p className="text-[10px] font-semibold text-black/40 uppercase tracking-widest">Prompt</p>
+                        {/* Col 1: Template preview img */}
+                        <div className="flex flex-col gap-2">
+                          <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest">Preview</p>
+                          <div className="rounded-md overflow-hidden border border-black/8 bg-[#f7f4f0]">
+                            {tpl?.refImg ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={tpl.refImg} alt={folder} className="w-full h-auto block cursor-zoom-in" onClick={() => setPreviewUrl(tpl.refImg!)} />
+                            ) : (
+                              <div className={`${aspectClass} flex items-center justify-center bg-black/4`}>
+                                <p className="text-[11px] text-black/25 text-center px-3">No preview</p>
+                              </div>
+                            )}
                           </div>
-                          {promptText ? (
-                            <p className="text-[11px] text-black/55 leading-relaxed whitespace-pre-wrap">{promptText}</p>
-                          ) : (
-                            <p className="text-[11px] text-black/25 italic">No prompt loaded</p>
-                          )}
                         </div>
 
-                        {/* Right: Image */}
-                        <div className="rounded-md overflow-hidden border border-black/8 bg-[#f7f4f0]">
-                          {job?.imageUrl ? (
-                            <>
-                              <div className={`relative w-full ${aspectClass}`}>
-                                <Image src={job.imageUrl} alt={folder} fill className="object-contain" unoptimized />
-                              </div>
-                              <div className="px-3 py-2.5">
-                                <button
-                                  onClick={() => downloadImage(job.imageUrl!, `${folder}.png`)}
-                                  className="w-full bg-black text-white text-xs font-semibold py-2 rounded-lg hover:bg-black/80 transition-colors"
+                        {/* Col 2: Prompt */}
+                        <div className="flex flex-col gap-2">
+                          <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest">Prompt</p>
+                          <div className="rounded-md border border-dashed border-black/20 bg-white p-3 flex flex-col gap-2 min-h-[80px]">
+                            {promptText ? (
+                              <p className="text-[11px] text-black/55 leading-relaxed whitespace-pre-wrap">{promptText}</p>
+                            ) : (
+                              <p className="text-[11px] text-black/25 italic">No prompt loaded</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => generateSinglePrompt(folder)}
+                            disabled={generatingPromptFor.has(folder) || !selectedProduct}
+                            className={`w-full flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${
+                              customPrompts[folder] || generatingPromptFor.has(folder)
+                                ? 'border-[#4caf50] text-[#2e7d32] hover:bg-[#e8f5e9]'
+                                : 'border-black/20 text-black/50 hover:bg-black/4'
+                            }`}
+                          >
+                            {generatingPromptFor.has(folder) ? (
+                              <><div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> Generating…</>
+                            ) : customPrompts[folder] ? '↻ Regenerate' : 'Generate prompt'}
+                          </button>
+                        </div>
+
+                        {/* Col 3: Outcome image */}
+                        <div className="flex flex-col gap-2">
+                          <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest">Output</p>
+                          <div className="rounded-md overflow-hidden border border-black/8 bg-[#f7f4f0]">
+                            {job?.imageUrl ? (
+                              <>
+                                <div
+                                  className={`relative w-full ${aspectClass} cursor-zoom-in`}
+                                  onClick={() => setPreviewUrl(job.imageUrl!)}
                                 >
-                                  Save image
-                                </button>
+                                  <Image src={job.imageUrl} alt={folder} fill className="object-contain" unoptimized />
+                                </div>
+                                <div className="px-3 py-2.5">
+                                  <button
+                                    onClick={() => downloadImage(job.imageUrl!, `${folder}.png`)}
+                                    className="w-full bg-black text-white text-xs font-semibold py-2 rounded-lg hover:bg-black/80 transition-colors"
+                                  >
+                                    Save image
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <div className={`${aspectClass} flex items-center justify-center bg-black/4`}>
+                                {job && !job.error ? (
+                                  <div className="w-6 h-6 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />
+                                ) : job?.error ? (
+                                  <p className="text-xs text-red-400 px-3 text-center">{job.error}</p>
+                                ) : (
+                                  <p className="text-[11px] text-black/25 text-center px-3">Generate to create image</p>
+                                )}
                               </div>
-                            </>
-                          ) : (
-                            <div className={`${aspectClass} flex items-center justify-center bg-black/4`}>
-                              {job && !job.error ? (
-                                <div className="w-6 h-6 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />
-                              ) : job?.error ? (
-                                <p className="text-xs text-red-400 px-3 text-center">{job.error}</p>
-                              ) : (
-                                <p className="text-[11px] text-black/25 text-center px-3">Hit Generate to create image</p>
-                              )}
-                            </div>
-                          )}
+                            )}
+                          </div>
+                          <button
+                            onClick={() => generateSingleImage(folder)}
+                            disabled={generatingImageFor.has(folder) || !hasImages}
+                            className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-black border-2 border-transparent py-2 text-xs font-semibold text-white hover:bg-transparent hover:border-black hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {generatingImageFor.has(folder) ? (
+                              <><div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> Generating…</>
+                            ) : job?.imageUrl ? '↻ Regenerate' : 'Generate image'}
+                          </button>
                         </div>
 
                       </div>
@@ -524,6 +826,31 @@ export default function Home() {
         </div>
 
       </div>
+
+      {/* Image preview modal */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <div
+            className="relative max-w-[90vw] max-h-[90vh] rounded-xl overflow-hidden shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewUrl} alt="Preview" className="block max-w-[90vw] max-h-[90vh] object-contain" />
+            <button
+              onClick={() => setPreviewUrl(null)}
+              className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

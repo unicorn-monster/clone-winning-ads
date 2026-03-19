@@ -6,6 +6,8 @@
 
 🎁 Free gifts included: Free Ebook · Free Shipping · Free Grooming Gloves
 
+> ⚠️ **Ad copy note:** The grooming glove is a free gift only. Do NOT mention or show the glove in product ads unless the ad is specifically about a promotion, bundle offer, or free gifts.
+
 ⚠️ *Low Stock Notice — Limited time flash sale*
 
 ---
@@ -93,24 +95,3 @@ No worries! Every order is backed by our **99-Day Money Back Guarantee**.
 If you're not 100% satisfied — whether your pup doesn't enjoy it or it's just not the right fit — simply contact us and we'll refund your purchase.
 
 If anything breaks within 99 days, we'll replace it free of charge.
-
----
-
-## Contact & Support
-
-**Maximutt LLC**
-1500 N Grant St ste n, Denver Colorado 80203, United States
-Registration ID: 20251301560
-
-- 📞 Phone: +16018033900
-- 📧 Email: hello@maximutt.com
-
-**Support Links:**
-- Shipping Information
-- Returns & Refund
-- Track Your Order
-- Contact Us
-
----
-
-*[maximutt.com](https://maximutt.com)*

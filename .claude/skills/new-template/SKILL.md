@@ -1,7 +1,10 @@
 ---
 name: new-template
+usage: /new-template [ad-format] [image-path]
 description: >
   Creates a new ad template in the static-ad-generator project from a reference image.
+  Usage: /new-template [ad-format] [image-path] — ad-format is optional (bold-claim,
+  community-ad, split-screen, lifestyle, etc.), image-path is the ref image to analyze.
   Use this skill whenever the user provides an image and wants to add it as a new template,
   says "make a template from this", "add this as template", "create template NNN", or
   "turn this ad into a template". The skill auto-numbers the template, analyzes the image,
