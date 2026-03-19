@@ -96,6 +96,23 @@ export default function Home() {
   const [dragOver, setDragOver] = useState(false)
   const [midTab, setMidTab] = useState<'templates' | 'gallery'>('templates')
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([])
+  const [showNewTplModal, setShowNewTplModal] = useState(false)
+  const [newTplFile, setNewTplFile] = useState<{ preview: string; dataUri: string } | null>(null)
+  const [newTplFormat, setNewTplFormat] = useState('auto')
+  const [newTplDragOver, setNewTplDragOver] = useState(false)
+  const [creatingTemplate, setCreatingTemplate] = useState(false)
+  const [newTplResult, setNewTplResult] = useState<string | null>(null)
+
+  // Left sidebar tab
+  const [leftTab, setLeftTab] = useState<'dropshipping' | 'pod'>('dropshipping')
+
+  // POD mode state
+  const [podMockup, setPodMockup] = useState<{ preview: string; dataUri: string; url: string | null } | null>(null)
+  const [podMockupUploading, setPodMockupUploading] = useState(false)
+  const [podDragOver, setPodDragOver] = useState(false)
+  const [podDescription, setPodDescription] = useState('')
+  const [podContext, setPodContext] = useState('')
+  const [extractingContext, setExtractingContext] = useState(false)
 
   const GALLERY_KEY = 'ad-gallery'
   const TTL = 24 * 60 * 60 * 1000 // 24h
@@ -132,27 +149,65 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  function reloadTemplates() {
+    fetch('/api/templates').then(r => r.json()).then(d => setTemplates(d.templates ?? []))
+  }
+
   useEffect(() => {
     fetch('/api/products').then(r => r.json()).then(d => {
       const list = d.products ?? []
       setProducts(list)
       if (list.length > 0) setSelectedProduct(list[0])
     })
-    fetch('/api/templates').then(r => r.json()).then(d => setTemplates(d.templates ?? []))
+    reloadTemplates()
   }, [])
+
+  function handleNewTplFile(file: File) {
+    const reader = new FileReader()
+    reader.onload = e => {
+      const dataUri = e.target?.result as string
+      setNewTplFile({ preview: URL.createObjectURL(file), dataUri })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function createTemplate() {
+    if (!newTplFile) return
+    setCreatingTemplate(true)
+    setNewTplResult(null)
+    try {
+      const res = await fetch('/api/new-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUri: newTplFile.dataUri, adFormat: newTplFormat }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setNewTplResult(`Template ${data.templateNumber} created · ${data.adFormat}`)
+      reloadTemplates()
+      setTimeout(() => {
+        setShowNewTplModal(false)
+        setNewTplFile(null)
+        setNewTplFormat('auto')
+        setNewTplResult(null)
+      }, 1800)
+    } catch (err) {
+      setNewTplResult(`Error: ${err instanceof Error ? err.message : 'Failed'}`)
+    } finally {
+      setCreatingTemplate(false)
+    }
+  }
 
   const activeFilterDef = ALL_FILTERS.find(f => f.value === activeFilter)
 
   const filtered = templates.filter(t => {
     if (!activeFilterDef || activeFilterDef.type === 'all') return true
-    if (activeFilterDef.type === 'ratio') return t.ratio === activeFilter
     if (activeFilterDef.type === 'format') return t.adFormat === activeFilter
     return true
   })
 
   const countForFilter = (f: typeof ALL_FILTERS[number]) => {
     if (f.type === 'all') return templates.length
-    if (f.type === 'ratio') return templates.filter(t => t.ratio === f.value).length
     return templates.filter(t => t.adFormat === f.value).length
   }
 
@@ -198,8 +253,49 @@ export default function Home() {
     setUploadedUrls(prev => { const n = [...prev]; n.splice(idx, 1); return n })
   }
 
+  async function handlePodMockup(file: File) {
+    if (!file.type.match(/image\/(jpeg|png|webp)/)) return
+    const preview = URL.createObjectURL(file)
+    const dataUri = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    setPodMockup({ preview, dataUri, url: null })
+    setPodContext('')
+    setPodMockupUploading(true)
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: [{ dataUri, name: file.name }] }),
+    })
+    const data = await res.json()
+    setPodMockup(prev => prev ? { ...prev, url: data.urls?.[0] ?? null } : null)
+    setPodMockupUploading(false)
+  }
+
+  async function extractPodContext() {
+    if (!podMockup) return
+    setExtractingContext(true)
+    try {
+      const res = await fetch('/api/extract-pod-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUri: podMockup.dataUri, description: podDescription }),
+      })
+      const data = await res.json()
+      if (data.context) setPodContext(data.context)
+    } catch (err) {
+      console.error('extractPodContext failed:', err)
+    } finally {
+      setExtractingContext(false)
+    }
+  }
+
   async function generatePrompts() {
-    if (!selectedProduct || selectedFolders.size === 0) return
+    const isPod = leftTab === 'pod'
+    if (isPod ? (!podContext || selectedFolders.size === 0) : (!selectedProduct || selectedFolders.size === 0)) return
     setGeneratingPrompts(true)
     setCustomPrompts({})
     setJobs([])
@@ -207,11 +303,10 @@ export default function Home() {
       const res = await fetch('/api/generate-prompts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateFolders: Array.from(selectedFolders),
-          productSlug: selectedProduct,
-          model,
-        }),
+        body: JSON.stringify(isPod
+          ? { templateFolders: Array.from(selectedFolders), podContext, model }
+          : { templateFolders: Array.from(selectedFolders), productSlug: selectedProduct, model }
+        ),
       })
       if (!res.ok) {
         const text = await res.text()
@@ -232,13 +327,17 @@ export default function Home() {
   }
 
   async function generateSinglePrompt(folder: string) {
-    if (!selectedProduct) return
+    const isPod = leftTab === 'pod'
+    if (isPod ? !podContext : !selectedProduct) return
     setGeneratingPromptFor(prev => new Set(prev).add(folder))
     try {
       const res = await fetch('/api/generate-prompts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateFolders: [folder], productSlug: selectedProduct, model }),
+        body: JSON.stringify(isPod
+          ? { templateFolders: [folder], podContext, model }
+          : { templateFolders: [folder], productSlug: selectedProduct, model }
+        ),
       })
       if (!res.ok) { console.error('generate-prompts error:', res.status, await res.text()); return }
       const data = await res.json()
@@ -252,7 +351,9 @@ export default function Home() {
   }
 
   async function generateSingleImage(folder: string) {
-    if (!selectedProduct || !hasImages) return
+    const isPod = leftTab === 'pod'
+    if (!hasImages) return
+    if (!isPod && !selectedProduct) return
     setGeneratingImageFor(prev => new Set(prev).add(folder))
     setJobs(prev => {
       const existing = prev.find(j => j.folder === folder)
@@ -263,13 +364,22 @@ export default function Home() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateFolders: [folder],
-          productSlug: selectedProduct,
-          model,
-          imageUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
-          filledPrompts: customPrompts[folder] ? { [folder]: customPrompts[folder] } : undefined,
-        }),
+        body: JSON.stringify(isPod
+          ? {
+              templateFolders: [folder],
+              podContext,
+              model,
+              imageUrls: podMockup?.url ? [podMockup.url] : undefined,
+              filledPrompts: customPrompts[folder] ? { [folder]: customPrompts[folder] } : undefined,
+            }
+          : {
+              templateFolders: [folder],
+              productSlug: selectedProduct,
+              model,
+              imageUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
+              filledPrompts: customPrompts[folder] ? { [folder]: customPrompts[folder] } : undefined,
+            }
+        ),
       })
       if (!res.ok) { console.error('generate error:', res.status, await res.text()); return }
       const data = await res.json()
@@ -286,20 +396,31 @@ export default function Home() {
   }
 
   async function generateImages() {
-    if (!selectedProduct || selectedFolders.size === 0) return
+    const isPod = leftTab === 'pod'
+    if (selectedFolders.size === 0) return
+    if (isPod ? !podContext : !selectedProduct) return
     setGeneratingImages(true)
     setJobs([])
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateFolders: Array.from(selectedFolders),
-          productSlug: selectedProduct,
-          model,
-          imageUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
-          filledPrompts: Object.keys(customPrompts).length > 0 ? customPrompts : undefined,
-        }),
+        body: JSON.stringify(isPod
+          ? {
+              templateFolders: Array.from(selectedFolders),
+              podContext,
+              model,
+              imageUrls: podMockup?.url ? [podMockup.url] : undefined,
+              filledPrompts: Object.keys(customPrompts).length > 0 ? customPrompts : undefined,
+            }
+          : {
+              templateFolders: Array.from(selectedFolders),
+              productSlug: selectedProduct,
+              model,
+              imageUrls: uploadedUrls.length > 0 ? uploadedUrls : undefined,
+              filledPrompts: Object.keys(customPrompts).length > 0 ? customPrompts : undefined,
+            }
+        ),
       })
       if (!res.ok) {
         const text = await res.text()
@@ -378,7 +499,7 @@ export default function Home() {
   const hasOutput = selectedFolders.size > 0 || jobs.length > 0 || Object.keys(customPrompts).length > 0
   const hasPrompts = Object.keys(customPrompts).length > 0
   const loading = generatingPrompts || generatingImages
-  const hasImages = refImages.length > 0 && !uploading
+  const hasImages = leftTab === 'pod' ? (podMockup?.url != null) : (refImages.length > 0 && !uploading)
   const allPromptsReady = selectedFolders.size > 0 && Array.from(selectedFolders).every(f => !!customPrompts[f])
 
   return (
@@ -388,44 +509,148 @@ export default function Home() {
         {/* LEFT SIDEBAR */}
         <div className="w-[20%] shrink-0 border-r border-black/8 flex flex-col bg-white overflow-hidden">
           {/* Header */}
-          <div className="h-[106px] px-5 flex items-center border-b border-black/8 shrink-0">
+          <div className="min-h-[106px] px-5 pt-4 pb-0 flex flex-col justify-between border-b border-black/8 shrink-0">
             <h1 className="text-xl font-bold text-black tracking-tight">🙏 Mark - Give Me Money</h1>
-          </div>
-
-          {/* Filters */}
-          <div className="px-5 pt-4 pb-3 border-b border-black/8 overflow-y-auto flex-1">
-            <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest mb-3">Format</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {ALL_FILTERS.map(f => {
-                const active = activeFilter === f.value
-                const count = countForFilter(f)
-                return (
-                  <button
-                    key={f.value}
-                    onClick={() => setActiveFilter(f.value)}
-                    className={`flex items-center justify-between gap-1 rounded-full px-3 py-2 transition-colors text-left border ${
-                      active
-                        ? 'bg-[#e8f5e9] border-[#4caf50]/40 text-black font-semibold'
-                        : 'bg-black/4 border-transparent text-black/55 hover:bg-black/8'
-                    }`}
-                  >
-                    <span className="text-[11px] leading-tight truncate">{f.label}</span>
-                    {count > 0 && (
-                      <span className={`text-[10px] tabular-nums shrink-0 ${active ? 'text-black/40' : 'text-black/25'}`}>
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
+            {/* Tabs */}
+            <div className="flex items-end gap-1 mt-2">
+              {(['dropshipping', 'pod'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setLeftTab(tab)}
+                  className={`px-3 py-2 text-xs font-semibold rounded-t-lg transition-colors border-t border-x ${
+                    leftTab === tab
+                      ? 'bg-white border-black/8 text-black -mb-px z-10'
+                      : 'bg-transparent border-transparent text-black/40 hover:text-black/60'
+                  }`}
+                >
+                  {tab === 'dropshipping' ? 'Dropshipping' : 'POD'}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* Dropshipping: Filters */}
+          {leftTab === 'dropshipping' && (
+            <div className="px-5 pt-4 pb-3 overflow-y-auto flex-1">
+              <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest mb-3">Format</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {ALL_FILTERS.map(f => {
+                  const active = activeFilter === f.value
+                  const count = countForFilter(f)
+                  return (
+                    <button
+                      key={f.value}
+                      onClick={() => setActiveFilter(f.value)}
+                      className={`flex items-center justify-between gap-1 rounded-full px-3 py-2 transition-colors text-left border ${
+                        active
+                          ? 'bg-[#e8f5e9] border-[#4caf50]/40 text-black font-semibold'
+                          : 'bg-black/4 border-transparent text-black/55 hover:bg-black/8'
+                      }`}
+                    >
+                      <span className="text-[11px] leading-tight truncate">{f.label}</span>
+                      {count > 0 && (
+                        <span className={`text-[10px] tabular-nums shrink-0 ${active ? 'text-black/40' : 'text-black/25'}`}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* POD: Mockup upload + context extraction */}
+          {leftTab === 'pod' && (
+            <div className="px-4 pt-4 pb-4 overflow-y-auto flex-1 flex flex-col gap-3">
+              <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest">Mockup</p>
+
+              {/* Mockup drop zone */}
+              <label
+                className={`relative flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-colors overflow-hidden ${
+                  podDragOver ? 'border-[#4caf50] bg-[#f1f8e9]' : 'border-black/15 hover:border-black/25'
+                }`}
+                style={{ minHeight: '120px' }}
+                onDragOver={e => { e.preventDefault(); setPodDragOver(true) }}
+                onDragLeave={() => setPodDragOver(false)}
+                onDrop={e => { e.preventDefault(); setPodDragOver(false); if (e.dataTransfer.files[0]) handlePodMockup(e.dataTransfer.files[0]) }}
+              >
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={e => e.target.files?.[0] && handlePodMockup(e.target.files[0])}
+                />
+                {podMockup ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={podMockup.preview} alt="Mockup" className="w-full object-cover" style={{ maxHeight: '200px' }} />
+                    {podMockupUploading && (
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      </div>
+                    )}
+                    <button
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); setPodMockup(null); setPodContext('') }}
+                      className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                    >
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
+                    <svg className="w-7 h-7 text-black/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25" />
+                    </svg>
+                    <p className="text-xs text-black/35 font-medium">Drop mockup here</p>
+                    <p className="text-[11px] text-black/20">or click to browse</p>
+                  </div>
+                )}
+              </label>
+
+              {/* Optional description */}
+              <textarea
+                value={podDescription}
+                onChange={e => setPodDescription(e.target.value)}
+                placeholder="Optional: product name, price, target audience…"
+                rows={2}
+                className="w-full text-xs rounded-lg border border-black/10 bg-black/2 px-3 py-2 text-black/70 resize-none placeholder:text-black/25 focus:outline-none focus:border-black/25"
+              />
+
+              {/* Extract button */}
+              <button
+                onClick={extractPodContext}
+                disabled={!podMockup || podMockupUploading || extractingContext}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-[#4caf50] px-3 py-2 text-xs font-semibold text-[#2e7d32] hover:bg-[#e8f5e9] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                {extractingContext ? (
+                  <><div className="w-3 h-3 border border-[#4caf50] border-t-transparent rounded-full animate-spin" /> Extracting…</>
+                ) : podContext ? '↻ Re-extract context' : 'Extract context from mockup'}
+              </button>
+
+              {/* Extracted context (editable) */}
+              {podContext && (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest">Extracted Context</p>
+                  <textarea
+                    value={podContext}
+                    onChange={e => setPodContext(e.target.value)}
+                    rows={7}
+                    className="w-full text-xs rounded-lg border border-[#4caf50]/40 bg-[#f1f8e9] px-3 py-2 text-black/70 resize-none focus:outline-none focus:border-[#4caf50]/60"
+                  />
+                  <p className="text-[10px] text-black/30">Edit above to refine before generating prompts.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* MIDDLE: Tabs */}
         <div className="w-[40%] flex flex-col min-w-0 border-r border-black/8">
           {/* Tab bar (replaces spacer) */}
-          <div className="h-[106px] border-b border-black/8 shrink-0 flex items-end px-4 pb-0 gap-1">
+          <div className="min-h-[106px] border-b border-black/8 shrink-0 flex items-end px-4 pb-0 gap-1">
             {(['templates', 'gallery'] as const).map(tab => {
               const label = tab === 'templates' ? 'Templates' : `Gallery${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`
               return (
@@ -442,6 +667,12 @@ export default function Home() {
                 </button>
               )
             })}
+            <button
+              onClick={() => { setShowNewTplModal(true); setNewTplFile(null); setNewTplFormat('auto'); setNewTplResult(null) }}
+              className="ml-auto mb-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-dashed border-black/20 text-black/40 hover:border-[#4caf50] hover:text-[#2e7d32] transition-colors"
+            >
+              + Add New Template
+            </button>
           </div>
 
           {/* Templates tab */}
@@ -564,81 +795,104 @@ export default function Home() {
         {/* RIGHT: Output */}
         <div className="w-[40%] flex flex-col bg-white">
           {/* Header — 3 columns */}
-          <div className="h-[106px] px-4 py-3 border-b border-black/8 flex gap-3 shrink-0 overflow-hidden">
+          <div className="min-h-[106px] px-4 py-3 border-b border-black/8 flex gap-3 shrink-0">
 
-            {/* Col 1: Product + Image Upload */}
-            <div className="flex-1 flex flex-col gap-2 min-w-0">
-              {products.length === 0 ? (
-                <p className="text-xs text-black/30 italic">No products found</p>
-              ) : (
-                <div className="relative">
-                  <select
-                    value={selectedProduct}
-                    onChange={e => setSelectedProduct(e.target.value)}
-                    className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-1.5 pr-7 text-xs font-medium text-black capitalize cursor-pointer focus:outline-none focus:border-[#4caf50]/60 focus:ring-1 focus:ring-[#4caf50]/30 transition-colors"
-                  >
-                    {products.map(p => (
-                      <option key={p} value={p} className="capitalize">{p}</option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                    <svg className="w-3 h-3 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              )}
-              {/* Image drop zone */}
-              <label
-                className={`flex items-center justify-center gap-1.5 w-full rounded-lg border-2 border-dashed cursor-pointer transition-colors py-2 ${
-                  dragOver ? 'border-black/40 bg-black/4' : 'border-black/10 bg-black/2 hover:border-black/20'
-                }`}
-                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
-              >
-                <input type="file" className="hidden" multiple accept="image/jpeg,image/png,image/webp" onChange={e => e.target.files && handleFiles(e.target.files)} />
-                <svg className="w-4 h-4 text-black/20 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25" />
-                </svg>
-                <span className="text-[10px] text-black/35 font-medium leading-snug">Upload img <span className="text-black/25">· optional · up to 14</span></span>
-              </label>
-              {/* Thumbnails */}
-              {refImages.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {refImages.map((img, i) => (
-                    <div key={i} className="relative w-9 h-9 rounded-md overflow-hidden bg-black/5 shrink-0 group">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.preview} alt="" className="w-full h-full object-cover" />
-                      {uploadedUrls[i] ? (
-                        <button
-                          onClick={() => removeRefImage(i)}
-                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
-                        >
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      ) : (
-                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                          <div className="w-2.5 h-2.5 border border-white border-t-transparent rounded-full animate-spin" />
-                        </div>
-                      )}
+            {/* Col 1: Product + Image Upload (Dropshipping) OR POD status */}
+            {leftTab === 'dropshipping' ? (
+              <div className="flex-1 flex flex-col gap-2 min-w-0">
+                {products.length === 0 ? (
+                  <p className="text-xs text-black/30 italic">No products found</p>
+                ) : (
+                  <div className="relative">
+                    <select
+                      value={selectedProduct}
+                      onChange={e => setSelectedProduct(e.target.value)}
+                      className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-1.5 pr-7 text-xs font-medium text-black capitalize cursor-pointer focus:outline-none focus:border-[#4caf50]/60 focus:ring-1 focus:ring-[#4caf50]/30 transition-colors"
+                    >
+                      {products.map(p => (
+                        <option key={p} value={p} className="capitalize">{p}</option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                      <svg className="w-3 h-3 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
                     </div>
-                  ))}
+                  </div>
+                )}
+                {/* Image drop zone */}
+                <label
+                  className={`flex flex-col w-full rounded-lg border-2 border-dashed cursor-pointer transition-colors p-2 ${
+                    dragOver ? 'border-black/40 bg-black/4' : 'border-black/10 bg-black/2 hover:border-black/20'
+                  }`}
+                  onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
+                >
+                  <input type="file" className="hidden" multiple accept="image/jpeg,image/png,image/webp" onChange={e => e.target.files && handleFiles(e.target.files)} />
+                  <div className={`flex items-center justify-center gap-1.5 py-0.5 ${refImages.length > 0 ? 'hidden' : ''}`}>
+                    <svg className="w-4 h-4 text-black/20 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25" />
+                    </svg>
+                    <span className="text-[10px] text-black/35 font-medium leading-snug">Upload img <span className="text-black/25">· optional · up to 14</span></span>
+                  </div>
+                  {refImages.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {refImages.map((img, i) => (
+                        <div key={i} className="relative w-12 h-12 rounded-md overflow-hidden bg-black/5 shrink-0 group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                          {uploadedUrls[i] ? (
+                            <button
+                              onClick={e => { e.preventDefault(); e.stopPropagation(); removeRefImage(i) }}
+                              className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                            >
+                              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          ) : (
+                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                              <div className="w-2.5 h-2.5 border border-white border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {uploading && <p className="text-[10px] text-black/30 mt-1">Uploading…</p>}
+                </label>
+                {!uploading && refImages.length === 0 && selectedFolders.size > 0 && (
+                  <p className="text-[10px] text-amber-600 font-medium">⚠ Add a product image to generate</p>
+                )}
+              </div>
+            ) : (
+              /* POD mode col 1: status indicators */
+              <div className="flex-1 flex flex-col justify-center gap-2.5 min-w-0">
+                <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest">POD Status</p>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${podMockup?.url ? 'bg-[#4caf50]' : podMockupUploading ? 'bg-yellow-400' : 'bg-black/15'}`} />
+                  <span className="text-xs text-black/60">
+                    {podMockupUploading ? 'Uploading mockup…' : podMockup?.url ? 'Mockup ready' : 'No mockup — upload in sidebar'}
+                  </span>
                 </div>
-              )}
-              {uploading && <p className="text-[10px] text-black/30">Uploading…</p>}
-              {!uploading && refImages.length === 0 && selectedFolders.size > 0 && (
-                <p className="text-[10px] text-amber-600 font-medium">⚠ Add a product image to generate</p>
-              )}
-            </div>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${podContext ? 'bg-[#4caf50]' : 'bg-black/15'}`} />
+                  <span className="text-xs text-black/60">
+                    {podContext ? 'Context extracted' : 'No context — extract in sidebar'}
+                  </span>
+                </div>
+                {!podContext && selectedFolders.size > 0 && (
+                  <p className="text-[10px] text-amber-600 font-medium">⚠ Extract context first to generate</p>
+                )}
+              </div>
+            )}
 
             {/* Col 2: Generate Prompts + Model */}
             <div className="flex-1 flex flex-col gap-2 min-w-0">
               <button
                 onClick={generatePrompts}
-                disabled={generatingPrompts || !selectedProduct || selectedFolders.size === 0}
+                disabled={generatingPrompts || selectedFolders.size === 0 || (leftTab === 'pod' ? !podContext : !selectedProduct)}
                 className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-[#4caf50] px-3 py-1.5 text-xs font-semibold text-[#2e7d32] hover:bg-[#e8f5e9] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
                 {generatingPrompts ? (
@@ -661,7 +915,7 @@ export default function Home() {
             <div className="relative group flex-1 min-w-0">
               <button
                 onClick={generateImages}
-                disabled={generatingImages || !selectedProduct || selectedFolders.size === 0 || !hasImages}
+                disabled={generatingImages || selectedFolders.size === 0 || !hasImages || (leftTab === 'pod' ? !podContext : !selectedProduct)}
                 className={`w-full h-full flex items-center justify-center gap-1.5 rounded-xl border-2 border-transparent px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-70 disabled:cursor-not-allowed transition-colors ${
                   allPromptsReady && hasImages
                     ? 'bg-[#4caf50] hover:bg-[#43a047]'
@@ -677,7 +931,7 @@ export default function Home() {
                   <svg className="w-3 h-3 text-yellow-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                   </svg>
-                  Add a product image first
+                  {leftTab === 'pod' ? 'Upload a mockup in the sidebar first' : 'Add a product image first'}
                 </div>
               )}
             </div>
@@ -819,6 +1073,127 @@ export default function Home() {
         </div>
 
       </div>
+
+      {/* Add New Template modal */}
+      {showNewTplModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => !creatingTemplate && setShowNewTplModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-[420px] p-6 flex flex-col gap-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-black">Add New Template</h2>
+              <button
+                onClick={() => !creatingTemplate && setShowNewTplModal(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-black/6 hover:bg-black/10 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5 text-black/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Image drop zone */}
+            <label
+              className={`relative flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-colors overflow-hidden ${
+                newTplDragOver ? 'border-[#4caf50] bg-[#f1f8e9]' : 'border-black/15 hover:border-black/25'
+              }`}
+              style={{ minHeight: '180px' }}
+              onDragOver={e => { e.preventDefault(); setNewTplDragOver(true) }}
+              onDragLeave={() => setNewTplDragOver(false)}
+              onDrop={e => { e.preventDefault(); setNewTplDragOver(false); if (e.dataTransfer.files[0]) handleNewTplFile(e.dataTransfer.files[0]) }}
+            >
+              <input
+                type="file"
+                className="hidden"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={e => e.target.files?.[0] && handleNewTplFile(e.target.files[0])}
+              />
+              {newTplFile ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={newTplFile.preview} alt="" className="w-full h-full object-contain max-h-[260px]" />
+                  <button
+                    onClick={e => { e.preventDefault(); e.stopPropagation(); setNewTplFile(null) }}
+                    className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                  >
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-2 py-10 px-4">
+                  <svg className="w-8 h-8 text-black/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25" />
+                  </svg>
+                  <p className="text-sm font-medium text-black/35">Drop reference ad image here</p>
+                  <p className="text-xs text-black/25">or click to browse · JPG, PNG, WEBP</p>
+                </div>
+              )}
+            </label>
+
+            {/* Ad format selector */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold text-black/40 uppercase tracking-widest">Ad Format</label>
+              <select
+                value={newTplFormat}
+                onChange={e => setNewTplFormat(e.target.value)}
+                className="w-full rounded-lg border border-black/12 px-3 py-2 text-sm text-black bg-white appearance-none cursor-pointer focus:outline-none focus:border-black/30"
+              >
+                <option value="auto">Auto-detect from image</option>
+                <option value="bold-claim">Bold Claim</option>
+                <option value="key-benefits">Key Benefits</option>
+                <option value="us-vs-them">Us vs. Them</option>
+                <option value="before-and-after">Before &amp; After</option>
+                <option value="community-ad">Community Ad</option>
+                <option value="split-screen">Split Screen</option>
+                <option value="grid-swap">Grid Swap</option>
+                <option value="price-breakdown">Price Breakdown</option>
+                <option value="how-to">How-To</option>
+                <option value="testimonial">Testimonial</option>
+                <option value="post-it">Post-It</option>
+                <option value="promo">Promo</option>
+                <option value="problem-vs-solution">Problem vs. Solution</option>
+                <option value="press-ad">Press Ad</option>
+                <option value="ugly-ad">Ugly Ad</option>
+              </select>
+            </div>
+
+            {/* Result / status */}
+            {newTplResult && (
+              <p className={`text-xs font-medium ${newTplResult.startsWith('Error') ? 'text-red-500' : 'text-[#2e7d32]'}`}>
+                {newTplResult}
+              </p>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => !creatingTemplate && setShowNewTplModal(false)}
+                className="flex-1 py-2 rounded-lg border border-black/12 text-sm font-semibold text-black/50 hover:bg-black/4 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createTemplate}
+                disabled={!newTplFile || creatingTemplate}
+                className="flex-1 py-2 rounded-lg bg-black text-white text-sm font-semibold hover:bg-black/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5"
+              >
+                {creatingTemplate ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    Analyzing…
+                  </>
+                ) : 'Create Template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Image preview modal */}
       {previewUrl && (
