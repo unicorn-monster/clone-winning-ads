@@ -379,6 +379,7 @@ export default function Home() {
   const hasPrompts = Object.keys(customPrompts).length > 0
   const loading = generatingPrompts || generatingImages
   const hasImages = refImages.length > 0 && !uploading
+  const allPromptsReady = selectedFolders.size > 0 && Array.from(selectedFolders).every(f => !!customPrompts[f])
 
   return (
     <div className="h-screen bg-white flex font-sans overflow-hidden">
@@ -387,91 +388,8 @@ export default function Home() {
         {/* LEFT SIDEBAR */}
         <div className="w-[20%] shrink-0 border-r border-black/8 flex flex-col bg-white overflow-hidden">
           {/* Header */}
-          <div className="px-5 pt-5 pb-4 border-b border-black/8">
-<h1 className="text-xl font-bold text-black tracking-tight">🙏 Mark - Give Me Money</h1>
-          </div>
-
-          {/* Product */}
-          <div className="px-5 pt-4 pb-3 border-b border-black/8">
-            <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest mb-2">Product</p>
-            {products.length === 0 ? (
-              <p className="text-xs text-black/30 italic">No products found</p>
-            ) : (
-              <div className="relative">
-                <select
-                  value={selectedProduct}
-                  onChange={e => setSelectedProduct(e.target.value)}
-                  className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 pr-8 text-sm font-medium text-black capitalize cursor-pointer focus:outline-none focus:border-[#4caf50]/60 focus:ring-1 focus:ring-[#4caf50]/30 transition-colors"
-                >
-                  {products.map(p => (
-                    <option key={p} value={p} className="capitalize">{p}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                  <svg className="w-3.5 h-3.5 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-                {selectedProduct && (
-                  <p className="mt-1.5 text-[11px] text-[#4caf50] font-medium">Brand DNA ready</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Image Input */}
-          <div className="px-5 pt-4 pb-3 border-b border-black/8">
-            <div className="flex items-baseline gap-1.5 mb-2">
-              <p className="text-[10px] font-semibold text-black/30 uppercase tracking-widest">Image Input</p>
-              <p className="text-[10px] text-black/25">optional · up to 14</p>
-            </div>
-
-            {/* Drop zone */}
-            <label
-              className={`flex flex-col items-center justify-center gap-1.5 w-full rounded-xl border-2 border-dashed cursor-pointer transition-colors py-4 ${
-                dragOver ? 'border-black/40 bg-black/4' : 'border-black/10 bg-black/2 hover:border-black/20'
-              }`}
-              onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
-            >
-              <input type="file" className="hidden" multiple accept="image/jpeg,image/png,image/webp" onChange={e => e.target.files && handleFiles(e.target.files)} />
-              <svg className="w-6 h-6 text-black/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25" />
-              </svg>
-              <p className="text-[11px] text-black/35 font-medium text-center leading-snug">Click to upload or drag and drop</p>
-              <p className="text-[10px] text-black/25 text-center">JPEG, PNG, WEBP · Max 30MB</p>
-            </label>
-
-            {/* Thumbnails */}
-            {refImages.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {refImages.map((img, i) => (
-                  <div key={i} className="relative w-12 h-12 rounded-lg overflow-hidden bg-black/5 shrink-0 group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.preview} alt="" className="w-full h-full object-cover" />
-                    {uploadedUrls[i] ? (
-                      <button
-                        onClick={() => removeRefImage(i)}
-                        className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
-                      >
-                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    ) : (
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                        <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {uploading && <p className="text-[10px] text-black/30 mt-1.5">Uploading…</p>}
-            {!uploading && refImages.length === 0 && selectedFolders.size > 0 && (
-              <p className="text-[11px] text-amber-600 font-medium mt-1.5">⚠ Add a product image to generate</p>
-            )}
+          <div className="h-[106px] px-5 flex items-center border-b border-black/8 shrink-0">
+            <h1 className="text-xl font-bold text-black tracking-tight">🙏 Mark - Give Me Money</h1>
           </div>
 
           {/* Filters */}
@@ -507,7 +425,7 @@ export default function Home() {
         {/* MIDDLE: Tabs */}
         <div className="w-[40%] flex flex-col min-w-0 border-r border-black/8">
           {/* Tab bar (replaces spacer) */}
-          <div className="h-[88px] border-b border-black/8 shrink-0 flex items-end px-4 pb-0 gap-1">
+          <div className="h-[106px] border-b border-black/8 shrink-0 flex items-end px-4 pb-0 gap-1">
             {(['templates', 'gallery'] as const).map(tab => {
               const label = tab === 'templates' ? 'Templates' : `Gallery${galleryItems.length > 0 ? ` (${galleryItems.length})` : ''}`
               return (
@@ -645,10 +563,79 @@ export default function Home() {
 
         {/* RIGHT: Output */}
         <div className="w-[40%] flex flex-col bg-white">
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-black/8 flex gap-2">
-            {/* Left column: Generate Prompts + Model */}
-            <div className="flex-1 flex flex-col gap-2">
+          {/* Header — 3 columns */}
+          <div className="h-[106px] px-4 py-3 border-b border-black/8 flex gap-3 shrink-0 overflow-hidden">
+
+            {/* Col 1: Product + Image Upload */}
+            <div className="flex-1 flex flex-col gap-2 min-w-0">
+              {products.length === 0 ? (
+                <p className="text-xs text-black/30 italic">No products found</p>
+              ) : (
+                <div className="relative">
+                  <select
+                    value={selectedProduct}
+                    onChange={e => setSelectedProduct(e.target.value)}
+                    className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-1.5 pr-7 text-xs font-medium text-black capitalize cursor-pointer focus:outline-none focus:border-[#4caf50]/60 focus:ring-1 focus:ring-[#4caf50]/30 transition-colors"
+                  >
+                    {products.map(p => (
+                      <option key={p} value={p} className="capitalize">{p}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                    <svg className="w-3 h-3 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              )}
+              {/* Image drop zone */}
+              <label
+                className={`flex items-center justify-center gap-1.5 w-full rounded-lg border-2 border-dashed cursor-pointer transition-colors py-2 ${
+                  dragOver ? 'border-black/40 bg-black/4' : 'border-black/10 bg-black/2 hover:border-black/20'
+                }`}
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files) }}
+              >
+                <input type="file" className="hidden" multiple accept="image/jpeg,image/png,image/webp" onChange={e => e.target.files && handleFiles(e.target.files)} />
+                <svg className="w-4 h-4 text-black/20 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25" />
+                </svg>
+                <span className="text-[10px] text-black/35 font-medium leading-snug">Upload img <span className="text-black/25">· optional · up to 14</span></span>
+              </label>
+              {/* Thumbnails */}
+              {refImages.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {refImages.map((img, i) => (
+                    <div key={i} className="relative w-9 h-9 rounded-md overflow-hidden bg-black/5 shrink-0 group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                      {uploadedUrls[i] ? (
+                        <button
+                          onClick={() => removeRefImage(i)}
+                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                        >
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <div className="w-2.5 h-2.5 border border-white border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {uploading && <p className="text-[10px] text-black/30">Uploading…</p>}
+              {!uploading && refImages.length === 0 && selectedFolders.size > 0 && (
+                <p className="text-[10px] text-amber-600 font-medium">⚠ Add a product image to generate</p>
+              )}
+            </div>
+
+            {/* Col 2: Generate Prompts + Model */}
+            <div className="flex-1 flex flex-col gap-2 min-w-0">
               <button
                 onClick={generatePrompts}
                 disabled={generatingPrompts || !selectedProduct || selectedFolders.size === 0}
@@ -669,12 +656,17 @@ export default function Home() {
                 <option value="claude-sonnet-4-6">Sonnet 4.6 — quality</option>
               </select>
             </div>
-            {/* Right column: Generate Images */}
-            <div className="relative group flex-1">
+
+            {/* Col 3: Generate Images */}
+            <div className="relative group flex-1 min-w-0">
               <button
                 onClick={generateImages}
                 disabled={generatingImages || !selectedProduct || selectedFolders.size === 0 || !hasImages}
-                className="w-full h-full flex items-center justify-center gap-1.5 rounded-xl bg-black border-2 border-transparent px-3 py-1.5 text-sm font-semibold text-white hover:bg-transparent hover:border-black hover:text-black disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
+                className={`w-full h-full flex items-center justify-center gap-1.5 rounded-xl border-2 border-transparent px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-70 disabled:cursor-not-allowed transition-colors ${
+                  allPromptsReady && hasImages
+                    ? 'bg-[#4caf50] hover:bg-[#43a047]'
+                    : 'bg-black hover:bg-transparent hover:border-black hover:text-black'
+                }`}
               >
                 {generatingImages ? (
                   <><div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" /> Generating…</>
@@ -689,6 +681,7 @@ export default function Home() {
                 </div>
               )}
             </div>
+
           </div>
 
           {/* Output content */}
