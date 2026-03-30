@@ -6,7 +6,7 @@ import crypto from 'crypto'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const KIE_BASE = 'https://api.kie.ai/api/v1'
-const ROOT = path.join(process.cwd(), '..')
+const ROOT = process.cwd()
 
 // Cache ref image Cloudinary URLs to avoid re-uploading on every generation
 const refImageUrlCache = new Map<string, string>()

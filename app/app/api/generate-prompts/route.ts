@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-const ROOT = path.join(process.cwd(), '..')
+const ROOT = process.cwd()
 
 const SYSTEM_PROMPT = `You are a DTC ad creative director. The template you receive is an image generation prompt written as a visual design brief. Your ONLY job is to swap every [PLACEHOLDER] token with real content from the product docs — nothing else.
 
@@ -23,20 +23,26 @@ export async function POST(req: NextRequest) {
   const {
     templateFolders,
     productSlug,
+    podContext,
     model = 'claude-haiku-4-5-20251001',
   } = await req.json()
 
   const refsDir = path.join(ROOT, 'references')
-  const productDir = path.join(ROOT, 'products', productSlug)
 
-  const productFiles = await fs.readdir(productDir)
-  const productContext = (
-    await Promise.all(
-      productFiles
-        .filter(f => f.endsWith('.md'))
-        .map(async f => `### ${f}\n${await fs.readFile(path.join(productDir, f), 'utf-8')}`)
-    )
-  ).join('\n\n---\n\n')
+  let productContext: string
+  if (podContext) {
+    productContext = podContext
+  } else {
+    const productDir = path.join(ROOT, 'products', productSlug)
+    const productFiles = await fs.readdir(productDir)
+    productContext = (
+      await Promise.all(
+        productFiles
+          .filter(f => f.endsWith('.md'))
+          .map(async f => `### ${f}\n${await fs.readFile(path.join(productDir, f), 'utf-8')}`)
+      )
+    ).join('\n\n---\n\n')
+  }
 
   const prompts = await Promise.all(
     templateFolders.map(async (folder: string) => {

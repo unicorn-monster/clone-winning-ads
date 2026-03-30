@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs/promises'
 import path from 'path'
 
-const ROOT = path.join(process.cwd(), '..')
+const ROOT = process.cwd()
 
 export async function GET(req: NextRequest) {
   const folder = req.nextUrl.searchParams.get('folder')
